@@ -45,6 +45,7 @@ ul.list{list-style:none;margin:0;padding:0}
 .a{color:var(--mute);font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item.now{background:linear-gradient(90deg,rgba(255,79,123,.18),transparent);border-radius:10px}
 .item.done{opacity:.45}
+.pick{cursor:pointer;border-radius:8px}.pick:hover .t{color:var(--acc)}
 .acts{display:flex;gap:4px}
 .acts button{min-height:40px;width:40px;padding:0;font-size:16px}
 .muted{color:var(--mute);font-size:14px}
@@ -105,6 +106,7 @@ code{background:#120910;padding:2px 6px;border-radius:6px;overflow-wrap:anywhere
   <div class="kh">
     <div style="min-width:0"><div class="t" id="kt">—</div><div class="a" id="ka"></div></div>
     <div class="ctr">
+      <button class="ghost" id="kswap" title="Busca en Spotify una versión karaoke (sin voz) de este tema">Versión sin voz</button>
       <button class="ghost" id="kpop">Abrir en ventana aparte</button>
       <button class="ghost" id="kminus" title="Adelantar la letra">−0,5 s</button>
       <button class="ghost" id="kplus" title="Atrasar la letra">+0,5 s</button>
@@ -118,7 +120,7 @@ code{background:#120910;padding:2px 6px;border-radius:6px;overflow-wrap:anywhere
     <button class="pri" id="kplay" aria-label="Reproducir o pausar">▶</button>
     <button class="ghost" id="knext" aria-label="Siguiente">⏭</button>
   </div>
-  <div class="src"><span id="ksrc"></span> · Rocola v4</div>
+  <div class="src"><span id="ksrc"></span> · Rocola v5</div>
 </section>
 
 <div id="toast" role="status"></div>
@@ -266,7 +268,7 @@ async function clearPlayed(){
 /* ---------- Búsqueda ---------- */
 function buildQ(){
   const q=S.q.trim().replace(/"/g,'');if(!q)return '';
-  return S.mode==='artista'?'artist:"'+q+'"':S.mode==='cancion'?'track:"'+q+'"':S.mode==='genero'?'genre:"'+q+'"':q;
+  return S.mode==='artista'?'artist:"'+q+'"':S.mode==='cancion'?'track:"'+q+'"':S.mode==='genero'?'genre:"'+q+'"':S.mode==='karaoke'?q+' karaoke':q;
 }
 async function search(more){
   const q=buildQ();if(!q)return;
@@ -306,15 +308,15 @@ function itemHTML(t,i,kind,cls=''){
     ?'<button class="pri" data-add="'+i+'" title="Agregar a la lista de espera" aria-label="Agregar a la lista">＋</button><button data-now="'+i+'" title="Tocar ahora" aria-label="Tocar ahora">▶</button>'
     :'<button data-play="'+i+'" aria-label="Tocar este">▶</button><button class="ghost" data-up="'+i+'" aria-label="Subir">↑</button><button class="ghost" data-down="'+i+'" aria-label="Bajar">↓</button><button class="ghost" data-del="'+i+'" aria-label="Quitar">✕</button>';
   return '<li class="item '+cls+'">'+(img?'<img src="'+esc(img.url)+'" alt="" loading="lazy">':'<div class="ph"></div>')+
-    '<div style="min-width:0"><div class="t">'+esc(t.name)+'</div><div class="a">'+esc(t.artists.map(a=>a.name).join(', '))+' · '+esc(t.album?t.album.name:'')+'</div></div><div class="acts">'+acts+'</div></li>';
+    '<div style="min-width:0"'+(kind==='q'?' class="pick" data-play="'+i+'" role="button" tabindex="0" title="Tocar este tema"':'')+'><div class="t">'+esc(t.name)+'</div><div class="a">'+esc(t.artists.map(a=>a.name).join(', '))+' · '+esc(t.album?t.album.name:'')+'</div></div><div class="acts">'+acts+'</div></li>';
 }
 function searchHTML(){
-  const modes=[['todo','Todo'],['artista','Artista'],['cancion','Canción'],['genero','Género']];
+  const modes=[['todo','Todo'],['artista','Artista'],['cancion','Canción'],['genero','Género'],['karaoke','Karaoke (sin voz)']];
   return '<section class="card"><h2>Buscar música</h2><form id="sf" class="row" style="flex-wrap:nowrap"><input id="sq" type="search" placeholder="'+
     (S.mode==='genero'?'Ej.: salsa, tango, rock en español':'Artista, canción o ambos')+'" value="'+esc(S.q)+'" autocomplete="off"><button class="pri">Buscar</button></form>'+
     '<div class="modes">'+modes.map(m=>'<button data-mode="'+m[0]+'" class="'+(S.mode===m[0]?'on':'')+'">'+m[1]+'</button>').join('')+'</div>'+
     (S.results.length?'<ul class="list">'+S.results.map((t,i)=>itemHTML(t,i,'res')).join('')+'</ul>'+(S.hasMore?'<p><button class="ghost" id="more">Ver más resultados</button></p>':'')
-      :'<p class="muted">'+(S.q?'Sin resultados. Prueba con otra palabra o cambia el filtro.':'Escribe y pulsa Buscar. Con «Género» se buscan temas de artistas de ese estilo.')+'</p>')+'</section>';
+      :'<p class="muted">'+(S.mode==='karaoke'&&!S.q?'Escribe el tema o el artista: se buscan versiones karaoke (sin la voz del cantante) publicadas en Spotify.':S.q?'Sin resultados. Prueba con otra palabra o cambia el filtro.':'Escribe y pulsa Buscar. Con «Género» se buscan temas de artistas de ese estilo.')+'</p>')+'</section>';
 }
 function queueHTML(){return '<section class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Lista de espera</h2><div class="row"><button class="pri" id="playall">Tocar la lista</button><button class="ghost" id="clean">Quitar las ya sonadas</button><button class="ghost" id="reload" aria-label="Actualizar">↻</button></div></div><ul class="list" id="qlist"></ul></section>'}
 function paintQueue(){
@@ -328,7 +330,7 @@ function settingsHTML(){
   '<p><b>¿Dónde suena la música?</b></p><div class="row" style="flex-wrap:nowrap"><select id="devsel"><option value="">Equipo activo de Spotify</option>'+devs+'</select><button class="ghost" id="devref" aria-label="Actualizar equipos">↻</button></div>'+
   '<p class="muted">Si la PC no aparece, abre la app de Spotify en la PC y vuelve a actualizar.</p>'+
   '<p><button id="devgo" class="pri">Pasar la música a ese equipo</button></p>'+
-  '<p class="muted">Rocola versión 4</p><p><b>Dirección de esta Rocola</b> (ábrela igual en el celular y en la PC):<br><code>'+esc(REDIRECT)+'</code></p>'+
+  '<p class="muted">Rocola versión 5</p><p><b>Dirección de esta Rocola</b> (ábrela igual en el celular y en la PC):<br><code>'+esc(REDIRECT)+'</code></p>'+
   '<p><button class="ghost" id="logout">Cerrar sesión de Spotify en este equipo</button></p></section>';
 }
 function setupHTML(){
@@ -359,11 +361,12 @@ function render(){
   app.innerHTML=wide?'<div class="grid">'+searchHTML()+queueHTML()+'</div>':(v==='lista'?queueHTML():searchHTML());
   paintQueue();
 }
+app.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('pick')){e.preventDefault();e.target.click()}});
 addEventListener('resize',()=>{clearTimeout(render.h);render.h=setTimeout(()=>{if(!document.activeElement||document.activeElement.id!=='sq')render()},250)});
 
 app.addEventListener('submit',e=>{e.preventDefault();if(e.target.id==='sf'){S.q=$('sq').value;search(false).catch(er=>toast(er.message))}});
 app.addEventListener('click',async e=>{
-  const b=e.target.closest('button');if(!b)return;const d=b.dataset;
+  const b=e.target.closest('button,.pick');if(!b)return;const d=b.dataset;
   try{
     if(b.id==='login'){LS.set('cid',$('cid').value.trim());await login()}
     else if(d.mode){S.mode=d.mode;S.q=($('sq')||{}).value||S.q;S.results=[];render();if(S.q)await search(false)}
@@ -390,13 +393,23 @@ function parseLRC(txt){
   const out=[];txt.split(/\r?\n/).forEach(l=>{const ts=[...l.matchAll(/\[(\d+):(\d+(?:\.\d+)?)\]/g)];const text=l.replace(/\[[^\]]*\]/g,'').trim();ts.forEach(m=>out.push({t:+m[1]*60+ +m[2],text:text||'♪'}))});
   return out.sort((a,b)=>a.t-b.t);
 }
+const KRE=/karaoke|instrumental|sin voz|backing track/i;
+function origin(tr){
+  /* En las versiones karaoke el título suele decir quién la canta originalmente */
+  const m=tr.name.match(/(?:originally performed by|in the style of|made famous by|popularized by|hecho famoso por|al estilo de|originalmente interpretad[oa] por)\s+([^\])]+)/i);
+  const name=tr.name.replace(/\s*[\[(][^\])]*[\])]/g,'').replace(/\s*[-–].*$/,'').trim();
+  return {name:name||tr.name,artist:m?m[1].trim():tr.artists[0].name};
+}
 async function fetchLyrics(tr){
   if(K.cache[tr.id])return K.cache[tr.id];
-  const artist=tr.artists[0].name,name=tr.name;let res=null;
-  try{const r=await fetch('https://lrclib.net/api/get?'+new URLSearchParams({artist_name:artist,track_name:name,album_name:tr.album?tr.album.name:'',duration:String(Math.round(tr.duration_ms/1000))}));if(r.ok)res=await r.json()}catch(e){}
+  const isK=KRE.test(tr.name)||KRE.test(tr.album?tr.album.name:'')||KRE.test(tr.artists.map(a=>a.name).join(' '));
+  const o=isK?origin(tr):{name:tr.name,artist:tr.artists[0].name};
+  const artist=o.artist,name=o.name;let res=null;
+  if(!isK)try{const r=await fetch('https://lrclib.net/api/get?'+new URLSearchParams({artist_name:artist,track_name:name,album_name:tr.album?tr.album.name:'',duration:String(Math.round(tr.duration_ms/1000))}));if(r.ok)res=await r.json()}catch(e){}
   if(!res||(!res.syncedLyrics&&!res.plainLyrics)){
     try{const r=await fetch('https://lrclib.net/api/search?'+new URLSearchParams({track_name:clean(name),artist_name:artist}));
-      if(r.ok){const arr=await r.json();const dur=tr.duration_ms/1000;arr.sort((a,b)=>Math.abs((a.duration||0)-dur)-Math.abs((b.duration||0)-dur));res=arr.find(x=>x.syncedLyrics)||arr.find(x=>x.plainLyrics)||null}}catch(e){}
+      if(r.ok){let arr=await r.json();
+        if(!arr.length&&isK){const r2=await fetch('https://lrclib.net/api/search?'+new URLSearchParams({q:name}));if(r2.ok)arr=await r2.json()}const dur=tr.duration_ms/1000;arr.sort((a,b)=>Math.abs((a.duration||0)-dur)-Math.abs((b.duration||0)-dur));res=arr.find(x=>x.syncedLyrics)||arr.find(x=>x.plainLyrics)||null}}catch(e){}
   }
   K.cache[tr.id]=res||{};return K.cache[tr.id];
 }
@@ -433,13 +446,25 @@ function openKaraoke(){
 function closeKaraoke(silent){$('karaoke').classList.remove('show');clearInterval(K.timer);K.timer=null;if(!silent&&document.fullscreenElement)document.exitFullscreen().catch(()=>{})}
 const IS_POP=location.hash==='#karaoke-ventana';
 function popKaraoke(){
-  const w=window.open(REDIRECT+'?v=4#karaoke-ventana','rocolaKaraoke','popup,width=1000,height=700');
+  const w=window.open(REDIRECT+'?v=5#karaoke-ventana','rocolaKaraoke','popup,width=1000,height=700');
   if(!w){toast('El navegador bloqueó la ventana: permite ventanas emergentes para este sitio');return false}
   w.focus();return true;
 }
 $('navpop').onclick=e=>{e.preventDefault();popKaraoke()};
 $('kpop').onclick=()=>{if(popKaraoke()){closeKaraoke();location.hash='#buscar'}};
 $('kclose').onclick=()=>{if(IS_POP){window.close();return}closeKaraoke();location.hash='#lista'};
+$('kswap').onclick=async()=>{
+  const tr=S.player&&S.player.item;if(!tr){toast('No hay nada sonando');return}
+  if(KRE.test(tr.name)){toast('Este tema ya es una versión karaoke');return}
+  try{
+    const n=tr.name.replace(/\s*[\[(][^\])]*[\])]/g,'').replace(/\s*[-–].*$/,'').trim();
+    const j=await api('/search?'+new URLSearchParams({q:n+' '+tr.artists[0].name+' karaoke',type:'track',limit:'10'}));
+    const low=n.toLowerCase();
+    const k=(j.tracks&&j.tracks.items||[]).filter(Boolean).find(t=>KRE.test(t.name+' '+t.artists.map(a=>a.name).join(' '))&&t.name.toLowerCase().includes(low));
+    if(!k){toast('No encontré en Spotify una versión karaoke de este tema');return}
+    await playNow(k);
+  }catch(e){toast(e.message)}
+};
 $('kplay').onclick=()=>$('bplay').click();
 $('knext').onclick=()=>$('bnext').click();
 $('kprev').onclick=()=>$('bprev').click();
