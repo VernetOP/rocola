@@ -32,6 +32,9 @@ h1{font:400 28px/1 Bungee,sans-serif;margin:0;color:var(--acc);letter-spacing:.5
 nav{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
 nav a{color:var(--mute);text-decoration:none;padding:10px 14px;border-radius:999px;font-weight:600}
 nav a.on{background:var(--acc);color:#1a0d14}
+nav a.spbtn{display:flex;align-items:center;gap:6px;background:#1ed760;color:#10130f}
+nav a.spbtn:hover{filter:brightness(1.08)}
+@media(max-width:600px){nav a.spbtn span{display:none}nav a.spbtn{padding:10px 12px}}
 main{max-width:1240px;margin:0 auto;padding:18px max(4vw,14px)}
 .grid{display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
 @media(min-width:900px){.grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}}
@@ -114,6 +117,7 @@ button.ttl:hover{color:var(--acc)}
 <header>
   <h1>ROCOLA</h1>
   <nav id="nav" hidden>
+    <a href="spotify:" id="navsp" class="spbtn" title="Abrir la app de Spotify en este equipo" aria-label="Abrir Spotify"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M9 18V6l11-2v12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.8" fill="currentColor"/><circle cx="17.5" cy="16" r="2.8" fill="currentColor"/></svg><span>Spotify</span></a>
     <a href="#buscar" data-v="buscar">Buscar</a>
     <a href="#karaoke" data-v="karaoke">Karaoke</a>
     <a href="#ajustes" data-v="ajustes">Ajustes</a>
@@ -155,7 +159,7 @@ button.ttl:hover{color:var(--acc)}
     <button class="pri" id="kplay" aria-label="Reproducir o pausar">▶</button>
     <button class="ghost" id="knext" aria-label="Siguiente">⏭</button>
   </div>
-  <div class="src"><span id="ksrc"></span> · Rocola v7</div>
+  <div class="src"><span id="ksrc"></span> · Rocola v7.1</div>
 </section>
 
 <div id="toast" role="status"></div>
@@ -395,7 +399,7 @@ function settingsHTML(){
   '<label class="chk"><input type="checkbox" id="yplays" '+(Y.plays?'checked':'')+'> Este equipo reproduce los videos de karaoke (márcalo solo en la PC)</label>'+
   '<p><button class="pri" id="ysave">Guardar</button></p>'+
   (Y.topic?'<p><b>Enlace para el celular</b>: ábrelo una vez en el celular y quedará conectado a esta PC.<br><code style="display:block;margin:6px 0">'+esc(phoneLink())+'</code><button class="ghost" id="ycopy">Copiar enlace</button></p>':'<p class="muted">Al guardar se crea el enlace para conectar el celular.</p>')+
-  '<p class="muted">Rocola versión 7</p><p><b>Dirección de esta Rocola</b> (ábrela igual en el celular y en la PC):<br><code>'+esc(REDIRECT)+'</code></p>'+
+  '<p class="muted">Rocola versión 7.1</p><p><b>Dirección de esta Rocola</b> (ábrela igual en el celular y en la PC):<br><code>'+esc(REDIRECT)+'</code></p>'+
   '<p><button class="ghost" id="logout">Cerrar sesión de Spotify en este equipo</button></p></section>';
 }
 function setupHTML(){
@@ -758,6 +762,9 @@ function paintYQueue(){
   ul.innerHTML=st.q.length?st.q.map((v,i)=>'<li class="item yt '+(i===st.cur?'now':(i<st.cur?'done':''))+'"><img src="https://i.ytimg.com/vi/'+encodeURIComponent(v.id)+'/default.jpg" alt="" loading="lazy"><div style="min-width:0" class="pick" data-yplay="'+esc(v.k)+'" role="button" tabindex="0" title="Tocar este video"><div class="t">'+esc(v.t)+'</div><div class="a">'+esc(v.c)+'</div></div><div class="acts"><button class="ghost" data-yup="'+esc(v.k)+'" aria-label="Subir">↑</button><button class="ghost" data-ydown="'+esc(v.k)+'" aria-label="Bajar">↓</button><button class="ghost" data-ydel="'+esc(v.k)+'" aria-label="Quitar">✕</button></div></li>').join('')
     :'<li class="muted" style="padding:12px 0">Sin videos. Búscalos con la opción «YouTube».</li>';
 }
+
+/* Botón «Spotify»: abre la app; luego la Rocola vuelve a buscar el equipo */
+$('navsp').addEventListener('click',()=>{toast('Abriendo Spotify… Si Chrome pregunta, elige «Abrir Spotify».');setTimeout(()=>{ensureDevice(true).then(poll).catch(()=>{})},6000)});
 
 /* ---------- Arranque ---------- */
 addEventListener('hashchange',route);
