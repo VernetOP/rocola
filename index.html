@@ -78,6 +78,7 @@ code{background:#120910;padding:2px 6px;border-radius:6px;overflow-wrap:anywhere
     <a href="#buscar" data-v="buscar">Buscar</a>
     <a href="#lista" data-v="lista">Lista de espera</a>
     <a href="#karaoke" data-v="karaoke">Karaoke</a>
+    <a href="#" id="navpop" title="Abre el karaoke en otra ventana que puedes llevar a otro monitor">Karaoke en ventana ↗</a>
     <a href="#ajustes" data-v="ajustes">Ajustes</a>
   </nav>
 </header>
@@ -101,6 +102,10 @@ code{background:#120910;padding:2px 6px;border-radius:6px;overflow-wrap:anywhere
   <div class="kh">
     <div style="min-width:0"><div class="t" id="kt">—</div><div class="a" id="ka"></div></div>
     <div class="ctr">
+      <button class="icon ghost" id="kprev" aria-label="Anterior">⏮</button>
+      <button class="icon pri" id="kplay" aria-label="Reproducir o pausar">▶</button>
+      <button class="icon ghost" id="knext" aria-label="Siguiente">⏭</button>
+      <button class="ghost" id="kpop">Abrir en ventana aparte</button>
       <button class="ghost" id="kminus" title="Adelantar la letra">−0,5 s</button>
       <button class="ghost" id="kplus" title="Atrasar la letra">+0,5 s</button>
       <button class="ghost" id="kfull">Pantalla completa</button>
@@ -152,6 +157,9 @@ async function handleCallback(){
 async function token(){
   if(LS.get('at')&&Date.now()<+LS.get('exp'))return LS.get('at');
   if(!LS.get('rt'))return null;
+  /* Si otra ventana de la Rocola ya está renovando la sesión, espera y usa la suya */
+  if(Date.now()-(+LS.get('lock')||0)<5000){await new Promise(r=>setTimeout(r,1500));if(LS.get('at')&&Date.now()<+LS.get('exp'))return LS.get('at')}
+  LS.set('lock',String(Date.now()));
   await tokenReq({grant_type:'refresh_token',refresh_token:LS.get('rt'),client_id:LS.get('cid')});
   return LS.get('at');
 }
@@ -216,13 +224,32 @@ function curIndex(){
   const p=S.player;if(!p||!p.item||!p.context||!S.plId||!String(p.context.uri).endsWith(S.plId))return -1;
   return S.queue.findIndex(t=>t.uri===p.item.uri);
 }
+async function ensureDevice(force){
+  if(S.device&&!force)return;
+  await loadDevices();
+  const d=S.devices.find(x=>x.is_active)||S.devices.find(x=>x.type==='Computer')||S.devices[0];
+  if(!d){S.device=null;LS.del('dev');throw new Error('No encuentro ningún equipo con Spotify abierto. Abre la app de Spotify en la PC y vuelve a intentar.')}
+  S.device=d.id;LS.set('dev',d.id);
+}
+async function withDevice(fn){
+  await ensureDevice(false);
+  try{return await fn()}
+  catch(e){if(!/equipo activo/.test(e.message))throw e;await ensureDevice(true);return fn()}
+}
 async function playAt(i){
-  await api('/me/player/play'+devQ(),{method:'PUT',body:JSON.stringify({context_uri:'spotify:playlist:'+S.plId,offset:{position:i}})});
+  await withDevice(()=>api('/me/player/play'+devQ(),{method:'PUT',body:JSON.stringify({context_uri:'spotify:playlist:'+S.plId,offset:{position:i}})}));
   setTimeout(poll,800);
 }
 async function playNow(tr){
-  const ci=curIndex();const pos=ci>=0?ci+1:S.queue.length;
-  await addToQueue(tr,pos);await playAt(pos);toast('Sonando: '+tr.name);
+  /* Toca el tema sin agregarlo a la lista de espera. Si ya hay algo cargado, lo pone
+     en la cola interna de Spotify y salta a él: al terminar, sigue la lista donde iba. */
+  await withDevice(async()=>{
+    if(S.player&&S.player.item){
+      await api('/me/player/queue?uri='+encodeURIComponent(tr.uri)+(S.device?'&device_id='+encodeURIComponent(S.device):''),{method:'POST'});
+      await api('/me/player/next'+devQ(),{method:'POST'});
+    }else await api('/me/player/play'+devQ(),{method:'PUT',body:JSON.stringify({uris:[tr.uri]})});
+  });
+  setTimeout(poll,800);toast('Sonando: '+tr.name);
 }
 async function clearPlayed(){
   const ci=curIndex();if(ci<=0){toast('No hay temas ya sonados para quitar');return}
@@ -262,12 +289,12 @@ function paintPlayer(){
   $('pbar').style.width=tr?Math.min(100,(p.progress_ms/tr.duration_ms)*100)+'%':'0';
 }
 async function ctl(fn){try{await fn();setTimeout(poll,600)}catch(e){toast(e.message)}}
-$('bplay').onclick=()=>ctl(()=>S.player&&S.player.is_playing?api('/me/player/pause'+devQ(),{method:'PUT'}):api('/me/player/play'+devQ(),{method:'PUT'}));
-$('bnext').onclick=()=>ctl(()=>api('/me/player/next'+devQ(),{method:'POST'}));
-$('bprev').onclick=()=>ctl(()=>api('/me/player/previous'+devQ(),{method:'POST'}));
+$('bplay').onclick=()=>ctl(()=>withDevice(()=>S.player&&S.player.is_playing?api('/me/player/pause'+devQ(),{method:'PUT'}):api('/me/player/play'+devQ(),{method:'PUT'})));
+$('bnext').onclick=()=>ctl(()=>withDevice(()=>api('/me/player/next'+devQ(),{method:'POST'})));
+$('bprev').onclick=()=>ctl(()=>withDevice(()=>api('/me/player/previous'+devQ(),{method:'POST'})));
 
 /* ---------- Vistas ---------- */
-const view=()=>(location.hash||'#buscar').slice(1);
+const view=()=>{const v=(location.hash||'#buscar').slice(1);return v==='karaoke-ventana'?'karaoke':v};
 function itemHTML(t,i,kind,cls=''){
   const img=t.album&&t.album.images&&t.album.images.at(-1);
   const acts=kind==='res'
@@ -372,6 +399,7 @@ async function karaokeTick(){
   const now=performance.now();
   if(now-S.pollAt>2500){try{S.player=await api('/me/player');S.pollAt=performance.now()}catch(e){}}
   const p=S.player,tr=p&&p.item;
+  $('kplay').textContent=p&&p.is_playing?'⏸':'▶';
   if(!tr){$('kt').textContent='Nada sonando';$('ka').textContent='Elige un tema desde el celular';if(K.id){K.id=null;$('lyr').innerHTML=''}return}
   if(tr.id!==K.id){
     K.id=tr.id;K.cur=-1;$('kt').textContent=tr.name;$('ka').textContent=tr.artists.map(a=>a.name).join(', ');
@@ -398,7 +426,19 @@ function openKaraoke(){
   $('karaoke').classList.add('show');if(!K.timer){K.id=null;K.timer=setInterval(karaokeTick,250);karaokeTick()}
 }
 function closeKaraoke(silent){$('karaoke').classList.remove('show');clearInterval(K.timer);K.timer=null;if(!silent&&document.fullscreenElement)document.exitFullscreen().catch(()=>{})}
-$('kclose').onclick=()=>{closeKaraoke();location.hash='#lista'};
+const IS_POP=location.hash==='#karaoke-ventana';
+function popKaraoke(){
+  const w=window.open(REDIRECT+'#karaoke-ventana','rocolaKaraoke','popup,width=1000,height=700');
+  if(!w){toast('El navegador bloqueó la ventana: permite ventanas emergentes para este sitio');return false}
+  w.focus();return true;
+}
+$('navpop').onclick=e=>{e.preventDefault();popKaraoke()};
+$('kpop').onclick=()=>{if(popKaraoke()){closeKaraoke();location.hash='#buscar'}};
+$('kclose').onclick=()=>{if(IS_POP){window.close();return}closeKaraoke();location.hash='#lista'};
+$('kplay').onclick=()=>$('bplay').click();
+$('knext').onclick=()=>$('bnext').click();
+$('kprev').onclick=()=>$('bprev').click();
+if(IS_POP){$('kpop').hidden=true;document.title='Rocola · Karaoke'}
 $('kfull').onclick=()=>{const el=document.documentElement;(document.fullscreenElement?document.exitFullscreen():el.requestFullscreen?el.requestFullscreen():Promise.resolve()).catch(()=>toast('Este navegador no permite pantalla completa'))};
 const shift=d=>{K.off=Math.round((K.off+d)*10)/10;LS.set('koff',String(K.off));K.cur=-2;toast('Ajuste de la letra: '+(K.off>0?'+':'')+String(K.off).replace('.',',')+' s')};
 $('kminus').onclick=()=>shift(-0.5);$('kplus').onclick=()=>shift(0.5);
