@@ -67,6 +67,9 @@ code{background:#120910;padding:2px 6px;border-radius:6px;overflow-wrap:anywhere
 #lyr p.cur{color:var(--ink);transform:scale(1.04);text-shadow:0 0 24px rgba(255,79,123,.55)}
 #lyr p.past{color:rgba(246,235,223,.55)}
 #lyr.plain p{color:var(--ink);font-size:clamp(20px,3vw,36px);font-weight:600}
+.kbar{display:flex;justify-content:center;gap:14px;padding:10px 0 4px}
+.kbar button{width:64px;height:64px;border-radius:50%;font-size:26px;padding:0}
+.kbar button.pri{width:80px;height:80px;font-size:32px}
 .src{font-size:12px;color:var(--mute);text-align:center;padding:6px}
 @media(prefers-reduced-motion:reduce){#lyr p{transition:none}}
 </style>
@@ -102,9 +105,6 @@ code{background:#120910;padding:2px 6px;border-radius:6px;overflow-wrap:anywhere
   <div class="kh">
     <div style="min-width:0"><div class="t" id="kt">—</div><div class="a" id="ka"></div></div>
     <div class="ctr">
-      <button class="icon ghost" id="kprev" aria-label="Anterior">⏮</button>
-      <button class="icon pri" id="kplay" aria-label="Reproducir o pausar">▶</button>
-      <button class="icon ghost" id="knext" aria-label="Siguiente">⏭</button>
       <button class="ghost" id="kpop">Abrir en ventana aparte</button>
       <button class="ghost" id="kminus" title="Adelantar la letra">−0,5 s</button>
       <button class="ghost" id="kplus" title="Atrasar la letra">+0,5 s</button>
@@ -113,7 +113,12 @@ code{background:#120910;padding:2px 6px;border-radius:6px;overflow-wrap:anywhere
     </div>
   </div>
   <div id="lyr"></div>
-  <div class="src" id="ksrc"></div>
+  <div class="kbar">
+    <button class="ghost" id="kprev" aria-label="Anterior">⏮</button>
+    <button class="pri" id="kplay" aria-label="Reproducir o pausar">▶</button>
+    <button class="ghost" id="knext" aria-label="Siguiente">⏭</button>
+  </div>
+  <div class="src"><span id="ksrc"></span> · Rocola v4</div>
 </section>
 
 <div id="toast" role="status"></div>
@@ -323,7 +328,7 @@ function settingsHTML(){
   '<p><b>¿Dónde suena la música?</b></p><div class="row" style="flex-wrap:nowrap"><select id="devsel"><option value="">Equipo activo de Spotify</option>'+devs+'</select><button class="ghost" id="devref" aria-label="Actualizar equipos">↻</button></div>'+
   '<p class="muted">Si la PC no aparece, abre la app de Spotify en la PC y vuelve a actualizar.</p>'+
   '<p><button id="devgo" class="pri">Pasar la música a ese equipo</button></p>'+
-  '<p><b>Dirección de esta Rocola</b> (ábrela igual en el celular y en la PC):<br><code>'+esc(REDIRECT)+'</code></p>'+
+  '<p class="muted">Rocola versión 4</p><p><b>Dirección de esta Rocola</b> (ábrela igual en el celular y en la PC):<br><code>'+esc(REDIRECT)+'</code></p>'+
   '<p><button class="ghost" id="logout">Cerrar sesión de Spotify en este equipo</button></p></section>';
 }
 function setupHTML(){
@@ -428,7 +433,7 @@ function openKaraoke(){
 function closeKaraoke(silent){$('karaoke').classList.remove('show');clearInterval(K.timer);K.timer=null;if(!silent&&document.fullscreenElement)document.exitFullscreen().catch(()=>{})}
 const IS_POP=location.hash==='#karaoke-ventana';
 function popKaraoke(){
-  const w=window.open(REDIRECT+'#karaoke-ventana','rocolaKaraoke','popup,width=1000,height=700');
+  const w=window.open(REDIRECT+'?v=4#karaoke-ventana','rocolaKaraoke','popup,width=1000,height=700');
   if(!w){toast('El navegador bloqueó la ventana: permite ventanas emergentes para este sitio');return false}
   w.focus();return true;
 }
